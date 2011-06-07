@@ -20,10 +20,6 @@
     return CGSizeMake(150, 130);
 }
 
-+ (UIImage *)shadowImage {
-    return [UIImage imageNamed:@"iconshadow.png"];
-}
-
 + (UIImage *)defaultIconImage {
     return [UIImage imageNamed:@"defaulticon.png"];
 }
@@ -54,12 +50,6 @@
         )];
 	    [containerView addSubview:iconView];
 
-        shadowView = [[UIImageView alloc] init];
-        [shadowView setFrame:[iconView bounds]];
-        [shadowView setImage:[[self class] shadowImage]];
-        [shadowView setHidden:YES];
-        [iconView addSubview:shadowView];
-
         nameLabel = [[UILabel alloc] initWithFrame:CGRectMake(captionOffset, self.frame.size.height - captionHeight, self.frame.size.width - captionOffset - captionOffset, 14)];
         [nameLabel setBackgroundColor:[UIColor clearColor]];
         [nameLabel setTextColor:[UIColor whiteColor]];
@@ -81,7 +71,91 @@
 }
 
 - (void)setHighlighted:(BOOL)highlighted {
-    [shadowView setHidden:!highlighted];
+    if (grabbed) highlighted = NO;
+
+    [super setHighlighted:highlighted];
+
+    if (highlighted) {
+        CAFilter *darkFilter = [[CAFilter alloc] initWithName:@"multiplyColor"];
+        [darkFilter setValue:(id) [[UIColor colorWithWhite:0.5 alpha:1] CGColor] forKey:@"inputColor"];
+        [[iconView layer] setFilters:[NSArray arrayWithObject:darkFilter]];
+    } else {
+        [[iconView layer] setFilters:nil];
+    }
+}
+
+- (void)fireLongTap {
+    [self sendActionsForControlEvents:MLControlEventTouchLongBegan];
+    [self setHighlighted:NO];
+}
+
+- (void)cancelLongTap {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(fireLongTap) object:nil];
+}
+
+- (void)startLongTap {
+    [self performSelector:@selector(fireLongTap) withObject:nil afterDelay:1.4f];
+}
+
+
+- (BOOL)beginTrackingWithTouch:(UITouch *)touch withEvent:(UIEvent *)event {
+    [self sendActionsForControlEvents:UIControlEventTouchDown];
+    [self setHighlighted:YES];
+    [self startLongTap];
+    
+    return YES;
+}
+
+- (BOOL)continueTrackingWithTouch:(UITouch *)touch withEvent:(UIEvent *)event {
+    CGPoint touchPoint = [touch locationInView:self];
+    if (CGRectContainsPoint([self bounds], touchPoint)) {
+        [self sendActionsForControlEvents:UIControlEventTouchDragInside];
+        [self setHighlighted:YES];
+    } else {
+        [self sendActionsForControlEvents:UIControlEventTouchDragOutside];
+        [self setHighlighted:NO];
+        [self cancelLongTap];
+    }
+    
+    return YES;
+}
+
+- (void)endTrackingWithTouch:(UITouch *)touch withEvent:(UIEvent *)event {
+    CGPoint touchPoint = [touch locationInView:self];
+    if (CGRectContainsPoint([self bounds], touchPoint)) {
+        [self sendActionsForControlEvents:UIControlEventTouchUpInside];
+    } else {
+        [self sendActionsForControlEvents:UIControlEventTouchUpOutside];
+    }
+    
+    [self setHighlighted:NO];
+    [self cancelLongTap];
+}
+
+- (void)cancelTrackingWithEvent:(UIEvent *)event {
+    [self sendActionsForControlEvents:UIControlEventTouchCancel];
+    [self setHighlighted:NO];
+    [self cancelLongTap];
+}
+
+- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
+    [super touchesBegan:touches withEvent:event];
+    [self beginTrackingWithTouch:[touches anyObject] withEvent:event];
+}
+
+- (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
+    [super touchesMoved:touches withEvent:event];
+    [self continueTrackingWithTouch:[touches anyObject] withEvent:event];
+}
+
+- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
+    [super touchesEnded:touches withEvent:event];
+    [self endTrackingWithTouch:[touches anyObject] withEvent:event];
+}
+
+- (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event {
+    [super touchesCancelled:touches withEvent:event];
+    [self cancelTrackingWithEvent:event];
 }
 
 - (void)setWobbling:(BOOL)wobbling_ {
@@ -157,11 +231,14 @@
     [self updateIcon];
 }
 
-- (void)setOrigin:(CGPoint)origin {
-    CGRect frame;
-    frame.origin = origin;
-    frame.size = [[self class] defaultIconSize];
-	[super setFrame:frame];
+- (void)setFrame:(CGRect)frame {
+    if ([[self identifier] isEqual:@"com.panic.Prompt"]) NSLog(@"FRAME %@: %@ -> %@", [self identifier], NSStringFromCGRect([self frame]), NSStringFromCGRect(frame));
+    [super setFrame:frame];
+}
+
+- (void)setCenter:(CGPoint)center {
+    if ([[self identifier] isEqual:@"com.panic.Prompt"]) NSLog(@"CENTER %@: %@ -> %@", [self identifier], NSStringFromCGPoint([self center]), NSStringFromCGPoint(center));
+	[super setCenter:center];
 }
 
 @end

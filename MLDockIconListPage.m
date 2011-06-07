@@ -7,6 +7,8 @@
 //
 
 #import "MLDockIconListPage.h"
+#import "MLIconListPage.h"
+#import "MLIcon.h"
 
 @implementation MLDockIconListPage
 
@@ -34,13 +36,29 @@
     }
 }
 
-- (int)effectiveColumnsForHorizontalPadding {
-    return [[self icons] count];
+- (CGFloat)horizontalPadding {
+    CGFloat width = [self bounds].size.width;
+    width -= [[self class] horizontalInsetForOrientation:orientation] * 2;
+    CGFloat iconWidth = [MLIcon defaultIconSize].width;
+    int iconCount = [self iconColumnsForCurrentOrientation];
+    width -= iconCount * iconWidth;
+    return width / (iconCount - 1);
+}
+
+- (CGFloat)horizontalInsetForCurrentOrientation {
+    CGFloat width = [self bounds].size.width;
+    width -= [[self class] horizontalInsetForOrientation:orientation] * 2;
+    CGFloat iconWidth = [MLIcon defaultIconSize].width;
+    CGFloat padding = [self horizontalPadding];
+    int iconCount = [[self icons] count];
+    width -= iconCount * iconWidth;
+    width -= (iconCount - 1) * padding;
+    return width / 2 + [[self class] horizontalInsetForOrientation:orientation];
 }
 
 - (void)drawRect:(CGRect)rect {
     CGRect dock = [self frame];
-    dock.size.height = 74.0f;
+    dock.size.height = 72.0f;
     dock.origin.y = self.frame.size.height - dock.size.height;
 
     CGContextClearRect(UIGraphicsGetCurrentContext(), rect);

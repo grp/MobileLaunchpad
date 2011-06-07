@@ -13,13 +13,14 @@
 typedef NSString *MLPageDirection;
 
 @class MLPage;
-@interface MLPageController : NSObject {
+@interface MLPageController : NSObject <UIScrollViewDelegate> {
     NSMutableArray *pages;
     int currentPageIndex;
     UIScrollView *scrollView;
     UIView *containerView;
     UIInterfaceOrientation orientation;
     MLPage *bottomPage;
+    UIPageControl *pageControl;
 }
 
 @property (nonatomic, assign) int currentPageIndex;

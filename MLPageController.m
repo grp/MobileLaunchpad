@@ -9,7 +9,8 @@
 #import "MLPageController.h"
 #import "MLPage.h"
 
-#define kMLPageControllerDockHeight 140
+#define kMLPageControllerDockHeight 136
+#define kMLPageControllerPageControlOffset 30
 
 @interface MLPageController (Internal)
 - (void)relayout;
@@ -23,12 +24,18 @@
         containerView = [[UIView alloc] init];
         [containerView setAutoresizingMask:UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight];
 
+        pageControl = [[UIPageControl alloc] init];
+        [containerView addSubview:pageControl];
+
         scrollView = [[UIScrollView alloc] initWithFrame:CGRectZero];
         [scrollView setDelaysContentTouches:NO];
+        [scrollView setCanCancelContentTouches:YES];
         [scrollView setAlwaysBounceHorizontal:YES];
         [scrollView setAlwaysBounceVertical:NO];
-		[scrollView setIndicatorStyle:UIScrollViewIndicatorStyleDefault];
 		[scrollView setPagingEnabled:YES];
+        [scrollView setShowsHorizontalScrollIndicator:NO];
+        [scrollView setShowsVerticalScrollIndicator:NO];
+        [scrollView setDelegate:self];
         [containerView addSubview:scrollView];
 
         pages = [[NSMutableArray alloc] init];
@@ -37,6 +44,21 @@
     }
 
     return self;
+}
+
+- (void)updateCurrentPage {
+    currentPageIndex = [scrollView contentOffset].x / [scrollView bounds].size.width;
+    [pageControl setCurrentPage:currentPageIndex];
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView_ willDecelerate:(BOOL)decelerate {
+    if (!decelerate) {
+        [self updateCurrentPage];
+    }
+}
+
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView_ {
+    [self updateCurrentPage];
 }
 
 - (void)scrollInDirection:(MLPageDirection)direction animated:(BOOL)animated {
@@ -127,6 +149,14 @@
     frame.size.height = kMLPageControllerDockHeight;
     [bottomPage setFrame:frame];
     [bottomPage setNeedsLayout];
+
+    [pageControl setNumberOfPages:[pages count]];
+    [pageControl sizeToFit];
+    CGRect pageFrame = [pageControl frame];
+    pageFrame.size.width = [containerView bounds].size.width;
+    pageFrame.origin.x = 0;
+    pageFrame.origin.y = [containerView bounds].size.height - kMLPageControllerDockHeight - kMLPageControllerPageControlOffset;
+    [pageControl setFrame:pageFrame];
 }
 
 @end

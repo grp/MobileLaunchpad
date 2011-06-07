@@ -33,9 +33,12 @@
 
         UIGestureRecognizer *dragRecognizer = [[MLDragGestureRecognizer alloc] initWithTarget:self action:@selector(dragFromRecognizer:)];
         [dragRecognizer setDelegate:self];
-
+        [dragRecognizer setCancelsTouchesInView:NO];
         UIWindow *target = [[pageController view] window];
         [target addGestureRecognizer:[dragRecognizer autorelease]];
+
+        int token;
+        notify_register_dispatch("com.mx.menubutton", &token, dispatch_get_main_queue(), ^(int t) { [self setEditing:NO]; });
 
         [self clearTarget];
         [self clearSaved];
@@ -48,10 +51,20 @@
 }
 
 - (CGPoint)convertGlobalPoint:(CGPoint)point fromIconList:(MLIconListPage *)iconList {
+    if (iconList == dockPage) {
+        CGPoint p = [iconList convertPoint:point toView:nil];
+        NSLog(@"dock %@ -> window %@", NSStringFromCGPoint(point), NSStringFromCGPoint(p));
+        return p;
+    }
     return [iconList convertPoint:point toView:nil];
 }
 
 - (CGPoint)convertGlobalPoint:(CGPoint)point toIconList:(MLIconListPage *)iconList {
+    if (iconList == dockPage) {
+        CGPoint p = [iconList convertPoint:point fromView:nil];
+        NSLog(@"window %@ -> dock %@", NSStringFromCGPoint(point), NSStringFromCGPoint(p));
+        return p;
+    }
     return [iconList convertPoint:point fromView:nil];
 }
 
@@ -100,6 +113,7 @@
 - (void)moveIconFromWindow:(MLIcon *)icon intoIconList:(MLIconListPage *)iconList {
     CGPoint center = [icon center];
     CGPoint local = [self convertGlobalPoint:center toIconList:iconList];
+    NSLog(@"%d %@: %@ -> window %@", iconList == dockPage, [icon identifier], NSStringFromCGPoint(center), NSStringFromCGPoint(local));
 
     [icon removeFromSuperview];
     [icon setCenter:local];
@@ -109,6 +123,7 @@
 - (void)moveIconToWindow:(MLIcon *)icon fromIconList:(MLIconListPage *)iconList {
     CGPoint center = [icon center];
     CGPoint global = [self convertGlobalPoint:center fromIconList:iconList];
+    NSLog(@"%d %@: %@ -> list %@", iconList == dockPage, [icon identifier], NSStringFromCGPoint(center), NSStringFromCGPoint(global));
 
     [iconList removeIcon:icon];
     [icon setCenter:global];
@@ -198,13 +213,8 @@
     }
 }
 
-- (void)tapFromRecognizer:(UITapGestureRecognizer *)recognizer {
-    MLIcon *icon = (MLIcon *) [recognizer view];
-
-    if ([recognizer state] == UIGestureRecognizerStateBegan) [icon setHighlighted:YES];
-    if ([recognizer state] == UIGestureRecognizerStateEnded) [icon setHighlighted:NO];
-    if ([recognizer state] == UIGestureRecognizerStateCancelled) [icon setHighlighted:NO];
-
+- (void)iconShortTapEnded:(MLIcon *)icon {
+    NSLog(@"tapped %@", [icon identifier]);
     if (!editing) {
         mach_port_t port;
         bootstrap_look_up(bootstrap_port, "com.mx.mx.rpcserver", &port);
@@ -212,23 +222,17 @@
     }
 }
 
-- (void)shortPressFromRecognizer:(UILongPressGestureRecognizer *)recognizer {
-    if ([recognizer state] == UIGestureRecognizerStateBegan && grabbedIcon == nil) {
-        MLIcon *icon = (MLIcon *) [recognizer view];
-
-        if (editing) {
-            [self setGrabbedIcon:icon animated:YES];
-        }
+- (void)iconShortTapBegan:(MLIcon *)icon  {
+    NSLog(@"tap began %@", [icon identifier]);
+    if (editing && grabbedIcon == nil) {
+        [self setGrabbedIcon:icon animated:YES];
     }
 }
 
-- (void)longPressFromRecognizer:(UILongPressGestureRecognizer *)recognizer {
-    if ([recognizer state] == UIGestureRecognizerStateBegan && grabbedIcon == nil) {
-        MLIcon *icon = (MLIcon *) [recognizer view];
-
-        if (!editing) {
-            [self setGrabbedIcon:icon animated:YES];
-        }
+- (void)iconLongTapBegan:(MLIcon *)icon {
+    NSLog(@"long tapped %@", [icon identifier]);
+    if (grabbedIcon == nil && !editing) {
+        [self setGrabbedIcon:icon animated:YES];
     }
 }
 
@@ -277,9 +281,11 @@
             targetIconListPage = savedIconListPage;
         }
 
+        NSLog(@"%@ center:%@ superview:%@", [grabbedIcon identifier], NSStringFromCGPoint([grabbedIcon center]), [grabbedIcon superview]);
         // Put it in (as a subview) of the icon list it's going to be
         // inserted into so the coordinates are correct when animating.
         [self moveIconFromWindow:grabbedIcon intoIconList:targetIconListPage];
+        NSLog(@"%@ center:%@ superview:%@", [grabbedIcon identifier], NSStringFromCGPoint([grabbedIcon center]), [grabbedIcon superview]);
     }
 
     if (animated) [self beginIconAnimations];
@@ -288,7 +294,9 @@
         [grabbedIcon setGrabbed:YES];
         [grabbedIcon setWobbling:NO];
     } else {
+        NSLog(@"%d %d %@ center:%@ superview:%@", targetIconListPage == dockPage, targetIndex, [grabbedIcon identifier], NSStringFromCGPoint([grabbedIcon center]), [grabbedIcon superview]);
         [self insertIcon:grabbedIcon intoIconList:targetIconListPage atIndex:targetIndex];
+        NSLog(@"%@ center:%@ superview:%@", [grabbedIcon identifier], NSStringFromCGPoint([grabbedIcon center]), [grabbedIcon superview]);
         [grabbedIcon setGrabbed:NO];
         [grabbedIcon setWobbling:YES];
 
@@ -324,7 +332,7 @@
         [icon setPrerendered:[[repr objectForKey:@"HasPrerenderedIcon"] boolValue]];
         [icon setSystem:[[repr objectForKey:@"IsSystemApplication"] boolValue]];
         UIImage *image = [UIImage imageWithContentsOfFile:[repr objectForKey:@"IconPath"]];
-        [icon setIcon:image];
+        if (image != nil) [icon setIcon:image];
         NSString *name = [repr objectForKey:@"DisplayName"];
         if ([name hasSuffix:@"~ipad"]) name = [name substringToIndex:[name length] - [@"~ipad" length]];
         [icon setName:name];
@@ -381,8 +389,6 @@
         }
         [dockPage setIcons:dockIcons];
 
-        NSLog(@"loaded dock: %@", dock);
-
         for (NSArray *iconList in iconLists) {
             if ([iconList count] == 0) continue;
 
@@ -401,8 +407,6 @@
 }
 
 - (void)createDefaultState {
-    NSLog(@"creatingDefaultState");
-
     int page = [MLIconListPage iconRowsForOrientation:[pageController orientation]] * [MLIconListPage iconColumnsForOrientation:[pageController orientation]];
     int dock = [MLDockIconListPage iconRowsForOrientation:[pageController orientation]] * [MLDockIconListPage iconColumnsForOrientation:[pageController orientation]];
 
@@ -425,18 +429,9 @@
     icons = [icons_ copy];
 
     for (MLIcon *icon in icons) {
-        UILongPressGestureRecognizer *longPressRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(longPressFromRecognizer:)];
-        [longPressRecognizer setDelegate:self];
-        [longPressRecognizer setMinimumPressDuration:1.5f];
-        UILongPressGestureRecognizer *shortPressRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(shortPressFromRecognizer:)];
-        [shortPressRecognizer setDelegate:self];
-        [shortPressRecognizer setMinimumPressDuration:0.0001f];
-        UITapGestureRecognizer *tapRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapFromRecognizer:)];
-        [tapRecognizer setDelegate:self];
-
-        [icon addGestureRecognizer:[longPressRecognizer autorelease]];
-        [icon addGestureRecognizer:[shortPressRecognizer autorelease]];
-        [icon addGestureRecognizer:[tapRecognizer autorelease]];
+        [icon addTarget:self action:@selector(iconShortTapEnded:) forControlEvents:UIControlEventTouchUpInside];
+        [icon addTarget:self action:@selector(iconShortTapBegan:) forControlEvents:UIControlEventTouchDown];
+        [icon addTarget:self action:@selector(iconLongTapBegan:) forControlEvents:MLControlEventTouchLongBegan];
     }
 }
 

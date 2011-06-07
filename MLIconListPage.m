@@ -153,10 +153,8 @@
 }
 
 - (void)insertIcon:(MLIcon *)icon atPosition:(int)index {
-    NSLog(@"inserting %@ at %d", [icon identifier], index);
     if (index > [icons count]) index = [icons count];
     if (index < 0) index = 0;
-    NSLog(@"inserting %@ at %d", [icon identifier], index);
 
     [icons insertObject:icon atIndex:index];
     [self layoutIconsNow];
