@@ -1,0 +1,5 @@
+This is an implementation of a SpringBoard-style icon grid.
+
+It's built for use with MobileX, a (closed-source and never publicly released) SpringBoard replacement, so it's not usable as-is. However, the code could be a useful reference if you want to implement a similar icon grid.
+
+Note that this project was never finished and supports only a limited subset of functionality: a dock, an icon grid, and some amount of re-arranging support. Folders are not supported.
